@@ -96,7 +96,7 @@ def main():
             bbox_center__world, bbox_center_bottom__world = vec_center_bottom(object.bound_box, object.matrix_world)
             print('bbox_center__world: {}'.format(bbox_center__world))
             print('     bottom:        {}'.format(bbox_center_bottom__world))
-            camera_from_origin__world = camera.location.normalized()
+            camera_from_origin__world = mathutils.Vector((camera.location.x, camera.location.y, 0)).normalized()
             for edge in mesh.edges:
                 edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
@@ -108,12 +108,31 @@ def main():
 
                 edge_midpoint__world = (edge_v0__world + edge_v1__world) / 2
 
+                edge_vec = edge_v1__world - edge_v0__world
+                left_norm = mathutils.Matrix
+
                 # ignore edges not along the bbox's bottom plane
                 if abs(bbox_center_bottom__world.z - edge_v0__world.z) > 0.01: continue
                 if abs(bbox_center_bottom__world.z - edge_v1__world.z) > 0.01: continue
 
                 midpoint_from_bbox__world = edge_midpoint__world - bbox_center_bottom__world
-                is_front_facing = camera_from_origin__world.dot(midpoint_from_bbox__world) > 0
+                #is_front_facing = camera_from_origin__world.dot(midpoint_from_bbox__world) > 0
+                is_front_facing = False
+
+                # Edge is only a front-facing exported wall if
+                #   at least one face using it is front-facing.
+                for polygon in mesh.polygons:
+                    if edge.vertices[0] not in polygon.vertices: continue
+                    if edge.vertices[1] not in polygon.vertices: continue
+                    print('poly normal:  {}'.format(polygon.normal))
+                    (_, rot, _) = object.matrix_world.decompose()
+                    normal__world = (rot @ polygon.normal).normalized()
+                    print('normal world: {}'.format(normal__world))
+                    is_front = normal__world.dot(camera_from_origin__world) > 0
+                    if is_front:
+                        is_front_facing = True
+                        break
+
                 print('midpoint world: {}'.format(edge_midpoint__world))
                 print('is front? {}'.format(is_front_facing))
 
