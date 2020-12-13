@@ -5,6 +5,9 @@ import math
 import sys
 
 CAMERA_NAME = 'iso-camera'
+# Don't use real camera position, since it
+#   could be on the 'wrong' side of the origin, etc.
+TOWARD_CAMERA_DIR = mathutils.Vector((1,1,0)).normalized()
 
 context = bpy.context
 scene = context.scene
@@ -96,7 +99,6 @@ def main():
             bbox_center__world, bbox_center_bottom__world = vec_center_bottom(object.bound_box, object.matrix_world)
             print('bbox_center__world: {}'.format(bbox_center__world))
             print('     bottom:        {}'.format(bbox_center_bottom__world))
-            camera_from_origin__world = mathutils.Vector((camera.location.x, camera.location.y, 0)).normalized()
             for edge in mesh.edges:
                 edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
@@ -115,10 +117,7 @@ def main():
                 if abs(bbox_center_bottom__world.z - edge_v0__world.z) > 0.01: continue
                 if abs(bbox_center_bottom__world.z - edge_v1__world.z) > 0.01: continue
 
-                midpoint_from_bbox__world = edge_midpoint__world - bbox_center_bottom__world
-                #is_front_facing = camera_from_origin__world.dot(midpoint_from_bbox__world) > 0
                 is_front_facing = False
-
                 # Edge is only a front-facing exported wall if
                 #   at least one face using it is front-facing.
                 for polygon in mesh.polygons:
@@ -128,7 +127,7 @@ def main():
                     (_, rot, _) = object.matrix_world.decompose()
                     normal__world = (rot @ polygon.normal).normalized()
                     print('normal world: {}'.format(normal__world))
-                    is_front = normal__world.dot(camera_from_origin__world) > 0
+                    is_front = normal__world.dot(TOWARD_CAMERA_DIR) > 0
                     if is_front:
                         is_front_facing = True
                         break
