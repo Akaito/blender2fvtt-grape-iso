@@ -2,6 +2,9 @@ import bpy
 import json
 import mathutils
 import math
+import sys
+
+CAMERA_NAME = 'iso-camera'
 
 context = bpy.context
 scene = context.scene
@@ -61,10 +64,25 @@ def vec_center(vec_list):
     center /= len(vec_list)
     return center
 
+def vec_center_bottom(vec_list, mat=None):
+    center = mathutils.Vector((0,0,0))
+    z_min = sys.float_info.max
+    for pos in vec_list:
+        z_min = min(z_min, pos[2])
+        center += mathutils.Vector(pos)
+    center /= len(vec_list)
+    bottom = mathutils.Vector((center.x, center.y, z_min))
+    if mat is None:
+        return center, bottom
+    return mat @ center, mat @ bottom
+
 
 def main():
+    camera = scene.collection.all_objects.get(CAMERA_NAME)
+    assert camera is not None, 'Please have a camera named {}'.format(CAMERA_NAME)
     jsn = {
-            'walls': []}
+            'walls': []
+    }
 
     objects = scene.collection.all_objects
     print('Number of objects: {}'.format(len(objects)))
@@ -75,18 +93,32 @@ def main():
             mesh = object.data
             obj_pos__world = object.location
             print('obj world pos: {}'.format(obj_pos__world))
-            bbox_center__world = object.matrix_world @ vec_center(object.bound_box)
+            bbox_center__world, bbox_center_bottom__world = vec_center_bottom(object.bound_box, object.matrix_world)
             print('bbox_center__world: {}'.format(bbox_center__world))
-            continue
+            print('     bottom:        {}'.format(bbox_center_bottom__world))
+            #camera_from_bbox__world = camera.location - bbox_center__world
+            # TODO: More proper iso camera ray
+            camera_from_bbox__world = mathutils.Vector((1,-1,1)).normalized()
             for edge in mesh.edges:
                 edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
-                #print('edge v0 local:  {}'.format(edge_v0__local))
-                #print('edge v1 local:  {}'.format(edge_v1__local))
 
                 edge_v0__world = object.matrix_world @ edge_v0__local
                 edge_v1__world = object.matrix_world @ edge_v1__local
+                print('edge v0 world:  {}'.format(edge_v0__world))
+                print('edge v1 world:  {}'.format(edge_v1__world))
+
                 edge_midpoint__world = (edge_v0__world + edge_v1__world) / 2
+
+                # ignore edges not along the bbox's bottom plane
+                if abs(bbox_center_bottom__world.z - edge_v0__world.z) > 0.01: continue
+                if abs(bbox_center_bottom__world.z - edge_v1__world.z) > 0.01: continue
+
+                midpoint_from_bbox__world = edge_midpoint__world - bbox_center_bottom__world
+                is_front = camera_from_bbox__world.dot(midpoint_from_bbox__world) > 0
+                print('midpoint world: {}'.format(edge_midpoint__world))
+                print('is front? {}'.format(is_front))
+
                 #print('edge v0 world:  {}'.format(edge_v0__world))
 
                 #bbox__world = bbox_object @ object.matrix_world
