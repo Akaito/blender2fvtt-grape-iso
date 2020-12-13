@@ -54,6 +54,14 @@ def export_wall(jsn, obj):
         })
 
 
+def vec_center(vec_list):
+    center = mathutils.Vector((0,0,0))
+    for pos in vec_list:
+        center += mathutils.Vector(pos)
+    center /= len(vec_list)
+    return center
+
+
 def main():
     jsn = {
             'walls': []}
@@ -61,17 +69,15 @@ def main():
     objects = scene.collection.all_objects
     print('Number of objects: {}'.format(len(objects)))
     for object in objects:
-        if object.name != 'wall.002': continue
-        print('Object [{}]'.format(object.name))
-        #print(dir(object))
-        #print(object.bound_box)
+        #if object.name != 'wall.002': continue
         if object.name.startswith('wall'):
+            print('Object [{}]'.format(object.name))
             mesh = object.data
             obj_pos__world = object.location
             print('obj world pos: {}'.format(obj_pos__world))
-            bbox__object = object.bound_box
-            print(bbox__object)
-            return
+            bbox_center__world = object.matrix_world @ vec_center(object.bound_box)
+            print('bbox_center__world: {}'.format(bbox_center__world))
+            continue
             for edge in mesh.edges:
                 edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
