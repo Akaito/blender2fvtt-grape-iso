@@ -96,9 +96,7 @@ def main():
             bbox_center__world, bbox_center_bottom__world = vec_center_bottom(object.bound_box, object.matrix_world)
             print('bbox_center__world: {}'.format(bbox_center__world))
             print('     bottom:        {}'.format(bbox_center_bottom__world))
-            #camera_from_bbox__world = camera.location - bbox_center__world
-            # TODO: More proper iso camera ray
-            camera_from_bbox__world = mathutils.Vector((1,-1,1)).normalized()
+            camera_from_origin__world = camera.location.normalized()
             for edge in mesh.edges:
                 edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
@@ -115,22 +113,26 @@ def main():
                 if abs(bbox_center_bottom__world.z - edge_v1__world.z) > 0.01: continue
 
                 midpoint_from_bbox__world = edge_midpoint__world - bbox_center_bottom__world
-                is_front = camera_from_bbox__world.dot(midpoint_from_bbox__world) > 0
+                is_front_facing = camera_from_origin__world.dot(midpoint_from_bbox__world) > 0
                 print('midpoint world: {}'.format(edge_midpoint__world))
-                print('is front? {}'.format(is_front))
+                print('is front? {}'.format(is_front_facing))
 
-                #print('edge v0 world:  {}'.format(edge_v0__world))
-
-                #bbox__world = bbox_object @ object.matrix_world
-                #print(bbox__world)
-                #return
-                #dims_vec = mathutils.Vector((object.dimensions.x, object.dimensions.y, object.dimensions.z))
-                #origin = obj.matrix_world.translation
-                # Transform dimensions (the object-local bounding box)
-                #   by the object's rotation.
-                #dimensions__world = (obj.matrix_basis.decompose()[1]) @ dims_vec
-                #export_wall(jsn['walls'], object)
-            return
+                jsn['walls'].append({
+                    'blenderObjectName': object.name, # for hooking up tiles/textures later
+                    #'texture': obj.data.image?
+                    'isFrontFacing': is_front_facing,
+                    'a': [
+                        round(edge_v0__world.x, 6),
+                        round(edge_v0__world.y, 6),
+                        round(edge_v0__world.z, 6),
+                        ],
+                    'b': [
+                        round(edge_v1__world.x, 6),
+                        round(edge_v1__world.y, 6),
+                        round(edge_v1__world.z, 6),
+                        ],
+                })
+            #return
 
     print(json.dumps(jsn, indent=2, sort_keys=True))
 main()
