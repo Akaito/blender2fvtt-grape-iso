@@ -11,7 +11,7 @@ import sys
 CAMERA_NAME = 'iso-camera'
 # Don't use real camera position, since it
 #   could be on the 'wrong' side of the origin, etc.
-TOWARD_CAMERA_DIR = mathutils.Vector((1,1,0)).normalized()
+TOWARD_CAMERA_DIR = mathutils.Vector((1,-1,0)).normalized()
 
 context = bpy.context
 scene = context.scene
