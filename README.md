@@ -8,8 +8,8 @@ Work in progress!  Very much not ready yet!
 - [x] Hook nonsense-image tiles to walls.
 - [ ] Better tile positions?
       Have to figure out what 'better' even means here.
-      For a first go, probably just make it so using one of Isometric Worlds'
-      tiles doesn't need re-adjustment after.  Or at least minimal
+      For a first go, maybe just make it so using one of The Iso Explorer's
+      tiles doesn't need re-adjustment after?  Or at least minimal
       re-adjustment.
 
 
