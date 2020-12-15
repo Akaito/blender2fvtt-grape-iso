@@ -1,0 +1,19 @@
+{
+  "_id": "VwbPlIGn4RjGDn1K",
+  "name": "blender2grape-iso Cleanup",
+  "type": "script",
+  "sort": 100001,
+  "flags": {
+    "exportSource": {
+      "world": "5e-srd",
+      "system": "dnd5e",
+      "coreVersion": "0.7.8",
+      "systemVersion": "1.1.1"
+    }
+  },
+  "scope": "global",
+  "command": "// Removes all entities created by the blender2grape-iso macro.\n\ndeleteStuff().await;\nasync function deleteStuff() {\n  let tileIds = canvas.scene.data.tiles\n    .filter(t => t.flags?.blender2grapeiso !== undefined)\n    .map(t => t._id);\n  //console.log('Found tiles: ', tileIds);\n  let wallIds = canvas.scene.data.walls\n    .filter(w => w.flags?.blender2grapeiso !== undefined)\n    .map(w => w._id);\n  //console.log('Found walls: ', wallIds);\n\n  await canvas.scene.deleteEmbeddedEntity('Tile', tileIds);\n  await canvas.scene.deleteEmbeddedEntity('Wall', wallIds);\n}",
+  "author": "2pwDDMtPZQq5dX12",
+  "img": "icons/svg/explosion.svg",
+  "actorIds": []
+}
