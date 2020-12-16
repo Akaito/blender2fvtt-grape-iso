@@ -16,7 +16,7 @@ print('')
 print('~*~ RENDER.PY ~*~')
 
 
-def do_render(outpath, obj):
+def do_render(camera, obj, outpath):
     bpy.context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
     bpy.ops.render.render(write_still = True)
 
@@ -37,7 +37,10 @@ def main():
         object.hide_render = \
             object.name.startswith('wall')
 
-    print([o.name for o in objects])
+    # Camera test stuff
+    print(camera.data)
+    print(camera.data.view_frame())
+    return
 
     # Render wall sprites.
     count = 0
@@ -46,7 +49,7 @@ def main():
         if not object.name.startswith('wall'): continue
         print('Rendering sprite for {}'.format(object.name))
         object.hide_render = False
-        do_render('C:/Users/akait/Pictures/blender', object)
+        do_render(camera, object, 'C:/Users/akait/Pictures/blender')
         object.hide_render = True
     print('Enumerated {} of {} objects'.format(count, len(objects)))
 

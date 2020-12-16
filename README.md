@@ -11,6 +11,15 @@ Work in progress!  Very much not ready yet!
       For a first go, maybe just make it so using one of The Iso Explorer's
       tiles doesn't need re-adjustment after?  Or at least minimal
       re-adjustment.
+- [ ] Render walls from Blender.
+      Have to figure out camera positioning.
+- [ ] Figure out how to handle complex meshes.
+      Maybe complex meshes (for rendering purposes) have
+      parent objects that are the collision mesh?
+      Or, if we do keep non-wall objects turned on during
+      renders of walls, this problem may already be solved for us.
+      Save for if someone wants to start bouncing light/reflections around...
+      There _may_ be a shadow-catcher-like setting to handle that case.
 
 
 ## Ideas / future
