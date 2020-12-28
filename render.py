@@ -17,7 +17,14 @@ print('~*~ RENDER.PY ~*~')
 
 
 def do_render(camera, obj, outpath):
-    bpy.context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
+    # select object and move camera to it
+    #context.view_layer.objects.active = bpy.data.objects[obj.name]
+    obj.select_set(True)
+    print(bpy.ops.view3d.camera_to_view_selected())
+    obj.select_set(False)
+
+    # render to file
+    context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
     bpy.ops.render.render(write_still = True)
 
 
@@ -30,23 +37,30 @@ def main():
     original_render_states = {}
     original_transparent = scene.render.film_transparent
     scene.render.film_transparent = True
+    depsgraph = context.evaluated_depsgraph_get()
 
-    # Hide everything, first storing off initial rendering state.
+    # Render-hide and deslect everything, first storing off initial rendering state.
     for object in objects:
         original_render_states[object.name] = object.hide_render
-        object.hide_render = \
-            object.name.startswith('wall')
+        #object.hide_render = object.name.startswith('wall')
+        object.hide_render = object.type == 'MESH'
+        object.select_set(False)
 
     # Camera test stuff
-    print(camera.data)
-    print(camera.data.view_frame())
-    return
+    #print(camera.data)
+    #print(camera.data.view_frame())
+    #print(camera.location)
+    #print(camera.camera_fit_coords(objects['wall.weird'].id, objects['wall.weird'].location))
+    #print(camera.camera_fit_coords(depsgraph, [objects['wall.weird'].location]))
+    #return
 
     # Render wall sprites.
     count = 0
     for object in objects:
         count += 1
+        # skip non-wall objects
         if not object.name.startswith('wall'): continue
+
         print('Rendering sprite for {}'.format(object.name))
         object.hide_render = False
         do_render(camera, object, 'C:/Users/akait/Pictures/blender')
