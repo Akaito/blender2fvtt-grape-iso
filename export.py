@@ -112,9 +112,8 @@ print("Projected point (pixel coords): {}.".format(proj_p_pixels))
 
 # Mostly just here to help debug by filtering down to objects of interest.
 def all_objects():
-    #return bpy.data.objects
-    #return scene.collection.all_objects
-    return [o for o in bpy.data.objects if o.name == 'wall.floorTile4x1']
+    #return [o for o in bpy.data.objects if o.name == 'wall.floorTile4x1']
+    return bpy.data.objects
 
 
 def do_render(camera, largest_ortho, obj, outpath):
@@ -160,7 +159,7 @@ def calc_largest_ortho_scale(camera):
         # TODO : Why is our main camera named 'Camera' in this collection?
         if current_ortho_scale > largest_ortho:
             largest_ortho = bpy.data.cameras['Camera'].ortho_scale
-            render_size = calc_render_size(largest_ortho, object, bpy.data.objects[CAMERA_NAME])
+            render_size = (FOUNDRY_GRID_SIZE * 1.8) * (largest_ortho / sqrt(2))
     print('largest_ortho', largest_ortho)
     return largest_ortho, render_size
 
@@ -175,6 +174,9 @@ def calc_render_size(ortho_scale, object, camera):
     # (Going by The Iso Explorer's assets.)
     render_width_per_scale = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
     return render_width_per_scale
+
+    # (x+y) * (FOUNDRY_GRID_SIZE * 0.9)
+    # (x+y) * (FOUNDRY_GRID_SIZE * 0.9) * (ortho_scale / sqrt(2))
 
 
 context = bpy.context
@@ -215,13 +217,14 @@ def prepare():
             }
     scene.render.film_transparent = True
 
-    # Deselect all objects
+    # Prepare all objects.
     for object in bpy.data.objects:
         cleanup_data['objects'][object.name] = {
                 'selected': object.select_get(),
                 'hide_render': object.hide_render,
                 }
         object.select_set(False)
+        object.hide_render = object.type == 'MESH'  # hide mesh objects
 
     return cleanup_data
 
@@ -245,8 +248,6 @@ def main(should_render = True):
             'scale': 0,  # TODO
             }
 
-    #objects = scene.collection.all_objects
-    #objects = bpy.data.objects
     objects = all_objects()
 
     largest_ortho, render_size = calc_largest_ortho_scale(camera)
