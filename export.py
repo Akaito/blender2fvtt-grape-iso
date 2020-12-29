@@ -134,7 +134,7 @@ def main():
     objects = scene.collection.all_objects
     print('Number of objects: {}'.format(len(objects)))
     for object in objects:
-        if object.name != 'wall.001': continue  # debugging-only!
+        #if object.name != 'wall.001': continue  # debugging-only!
         if object.name.startswith('wall'):
             print('Object [{}]'.format(object.name))
             mesh = object.data
@@ -145,9 +145,9 @@ def main():
             print('     bottom:        {}'.format(bbox_center_bottom__world))
 
             # TODO : We also need to de-select EVERYTHING before doing this; like render.py.
-            object.select_set(True)
-            print(bpy.ops.view3d.camera_to_view_selected())
-            object.select_set(False)
+            #object.select_set(True)
+            #print(bpy.ops.view3d.camera_to_view_selected())
+            #object.select_set(False)
 
             walls = []
             for edge in mesh.edges:
@@ -156,8 +156,8 @@ def main():
 
                 edge_v0__world = object.matrix_world @ edge_v0__local
                 edge_v1__world = object.matrix_world @ edge_v1__local
-                print('edge v0 world:  {}'.format(edge_v0__world))
-                print('edge v1 world:  {}'.format(edge_v1__world))
+                #print('edge v0 world:  {}'.format(edge_v0__world))
+                #print('edge v1 world:  {}'.format(edge_v1__world))
 
                 edge_midpoint__world = (edge_v0__world + edge_v1__world) / 2
 
@@ -183,33 +183,40 @@ def main():
                         is_front_facing = True
                         break
 
-                print('midpoint world: {}'.format(edge_midpoint__world))
-                print('is front? {}'.format(is_front_facing))
+                #print('midpoint world: {}'.format(edge_midpoint__world))
+                #print('is front? {}'.format(is_front_facing))
 
-                # TODO : Why is it called 'Camera', and not the object's name?
-                ortho_proj_scale = bpy.data.cameras['Camera'].ortho_scale
-                #ortho_proj_scale_mtx = mathutils.Matrix.Scale(ortho_proj_scale)
-                edge_v0__camera = (1 * ORTHO_PROJ) @ edge_v0__world
-                edge_v1__camera = (1 * ORTHO_PROJ) @ edge_v1__world
                 camera = bpy.data.objects[CAMERA_NAME]
                 edge_v0__render = project_3d_point(camera, edge_v0__world)
                 edge_v1__render = project_3d_point(camera, edge_v1__world)
-                print('edge_v0__world:', edge_v0__world)
-                print('edge_v0__render:', edge_v0__render)
+                #print('edge_v0__world:', edge_v0__world)
+                #print('edge_v0__render:', edge_v0__render)
 
                 walls.append({
                     #'texture': obj.data.image?
                     'isFrontFacing': is_front_facing,
-                    'a': [
-                        round(edge_v0__world.x, 6),
-                        round(edge_v0__world.y, 6),
-                        round(edge_v0__world.z, 6),
-                        ],
-                    'b': [
-                        round(edge_v1__world.x, 6),
-                        round(edge_v1__world.y, 6),
-                        round(edge_v1__world.z, 6),
-                        ],
+                    'a': {
+                        'world': [
+                            round(edge_v0__world.x, 6),
+                            round(edge_v0__world.y, 6),
+                            round(edge_v0__world.z, 6),
+                            ],
+                        'renderCamera': [
+                            round(edge_v0__render.x, 6),
+                            round(edge_v0__render.y, 6),
+                            ],
+                        },
+                    'b': {
+                        'world': [
+                            round(edge_v1__world.x, 6),
+                            round(edge_v1__world.y, 6),
+                            round(edge_v1__world.z, 6),
+                            ],
+                        'renderCamera': [
+                            round(edge_v0__render.x, 6),
+                            round(edge_v0__render.y, 6),
+                            ],
+                        },
                 })
             if len(walls) > 0:
                 jsn['blenderWalls'].append({
