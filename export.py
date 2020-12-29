@@ -4,20 +4,20 @@
 
 import bpy
 import json
-import mathutils
-import math
+from mathutils import *
+#from math import *
 import sys
 
 
 CAMERA_NAME = 'iso-camera'
 # Don't use real camera position, since it
 #   could be on the 'wrong' side of the origin, etc.
-TOWARD_CAMERA_DIR = mathutils.Vector((1,-1,0)).normalized()
+TOWARD_CAMERA_DIR = Vector((1,-1,0)).normalized()
 # Note: This is just the orthographic projection's translation (T).
 #       Missing the scale (S).
 #       See https://en.wikipedia.org/wiki/Orthographic_projection#Geometry
-ORTHO_PROJ = mathutils.Matrix.OrthoProjection(
-        mathutils.Vector((1,-1,1)),
+ORTHO_PROJ = Matrix.OrthoProjection(
+        Vector((1,-1,1)),
         4
         )
 print('ORTHO_PROJ', ORTHO_PROJ)
@@ -26,8 +26,8 @@ print('ORTHO_PROJ', ORTHO_PROJ)
 #####
 ## Code from https://blender.stackexchange.com/questions/16472/how-can-i-get-the-cameras-projection-matrix/86570#86570
 def project_3d_point(camera: bpy.types.Object,
-                     p: mathutils.Vector,
-                     render: bpy.types.RenderSettings = bpy.context.scene.render) -> mathutils.Vector:
+                     p: Vector,
+                     render: bpy.types.RenderSettings = bpy.context.scene.render) -> Vector:
     """
     Given a camera and its projection matrix M;
     given p, a 3d point to project:
@@ -68,17 +68,17 @@ def project_3d_point(camera: bpy.types.Object,
     # print(projection_matrix * modelview_matrix)
 
     # Compute P’ = M * P
-    p1 = projection_matrix @ modelview_matrix @ mathutils.Vector((p.x, p.y, p.z, 1))
+    p1 = projection_matrix @ modelview_matrix @ Vector((p.x, p.y, p.z, 1))
 
     # Normalize in: x’’ = x’ / w’, y’’ = y’ / w’
-    p2 = mathutils.Vector(((p1.x/p1.w, p1.y/p1.w)))
+    p2 = Vector(((p1.x/p1.w, p1.y/p1.w)))
 
     return p2
 
 camera = bpy.data.objects[CAMERA_NAME]  # or bpy.context.active_object
 render = bpy.context.scene.render
 
-P = mathutils.Vector((-0.002170146, 0.409979939, 0.162410125))
+P = Vector((-0.002170146, 0.409979939, 0.162410125))
 
 print("Projecting point {} for camera '{:s}' into resolution {:d}x{:d}..."
       .format(P, camera.name, render.resolution_x, render.resolution_y))
@@ -86,7 +86,7 @@ print("Projecting point {} for camera '{:s}' into resolution {:d}x{:d}..."
 proj_p = project_3d_point(camera=camera, p=P, render=render)
 print("Projected point (homogeneous coords): {}.".format(proj_p))
 
-proj_p_pixels = mathutils.Vector(((render.resolution_x-1) * (proj_p.x + 1) / 2, (render.resolution_y - 1) * (proj_p.y - 1) / (-2)))
+proj_p_pixels = Vector(((render.resolution_x-1) * (proj_p.x + 1) / 2, (render.resolution_y - 1) * (proj_p.y - 1) / (-2)))
 print("Projected point (pixel coords): {}.".format(proj_p_pixels))
 ## end Blender Stack Exchange code for world->pixel projection.
 #####
@@ -105,20 +105,20 @@ print(dir(scene))
 
 
 def vec_center(vec_list):
-    center = mathutils.Vector((0,0,0))
+    center = Vector((0,0,0))
     for pos in vec_list:
-        center += mathutils.Vector(pos)
+        center += Vector(pos)
     center /= len(vec_list)
     return center
 
 def vec_center_bottom(vec_list, mat=None):
-    center = mathutils.Vector((0,0,0))
+    center = Vector((0,0,0))
     z_min = sys.float_info.max
     for pos in vec_list:
         z_min = min(z_min, pos[2])
-        center += mathutils.Vector(pos)
+        center += Vector(pos)
     center /= len(vec_list)
-    bottom = mathutils.Vector((center.x, center.y, z_min))
+    bottom = Vector((center.x, center.y, z_min))
     if mat is None:
         return center, bottom
     return mat @ center, mat @ bottom
@@ -133,6 +133,11 @@ def main():
 
     objects = scene.collection.all_objects
     print('Number of objects: {}'.format(len(objects)))
+
+    # Deselect all objects
+    for object in objects:
+        object.select_set(False)
+
     for object in objects:
         #if object.name != 'wall.001': continue  # debugging-only!
         if object.name.startswith('wall'):
@@ -144,15 +149,22 @@ def main():
             print('bbox_center__world: {}'.format(bbox_center__world))
             print('     bottom:        {}'.format(bbox_center_bottom__world))
 
-            # TODO : We also need to de-select EVERYTHING before doing this; like render.py.
-            #object.select_set(True)
-            #print(bpy.ops.view3d.camera_to_view_selected())
-            #object.select_set(False)
+            object.select_set(True)
+            bpy.ops.view3d.camera_to_view_selected()
+            object.select_set(False)
+
+            camera = bpy.data.objects[CAMERA_NAME]
+            print('camera scale:', bpy.data.cameras['Camera'].ortho_scale)
+            originInCamera = \
+                    project_3d_point(camera, Vector((0,0,0)))
+            originPlusOneInCamera = \
+                    project_3d_point(camera, Vector((1,0,0)))
+            cameraUnitsPerLateralWorldUnit = (originPlusOneInCamera - originInCamera).length
 
             walls = []
             for edge in mesh.edges:
-                edge_v0__local = mathutils.Vector(mesh.vertices[edge.vertices[0]].co)
-                edge_v1__local = mathutils.Vector(mesh.vertices[edge.vertices[1]].co)
+                edge_v0__local = Vector(mesh.vertices[edge.vertices[0]].co)
+                edge_v1__local = Vector(mesh.vertices[edge.vertices[1]].co)
 
                 edge_v0__world = object.matrix_world @ edge_v0__local
                 edge_v1__world = object.matrix_world @ edge_v1__local
@@ -162,7 +174,7 @@ def main():
                 edge_midpoint__world = (edge_v0__world + edge_v1__world) / 2
 
                 edge_vec = edge_v1__world - edge_v0__world
-                left_norm = mathutils.Matrix
+                left_norm = Matrix
 
                 # ignore edges not along the bbox's bottom plane
                 if abs(bbox_center_bottom__world.z - edge_v0__world.z) > 0.01: continue
@@ -186,7 +198,6 @@ def main():
                 #print('midpoint world: {}'.format(edge_midpoint__world))
                 #print('is front? {}'.format(is_front_facing))
 
-                camera = bpy.data.objects[CAMERA_NAME]
                 edge_v0__render = project_3d_point(camera, edge_v0__world)
                 edge_v1__render = project_3d_point(camera, edge_v1__world)
                 #print('edge_v0__world:', edge_v0__world)
@@ -222,6 +233,9 @@ def main():
                 jsn['blenderWalls'].append({
                     'blenderObjectName': object.name,
                     'foundryWalls': walls,
+                    'renderUnitsPerLateralWorldUnit': cameraUnitsPerLateralWorldUnit,
+                    'renderWidth': render.resolution_x,
+                    'renderHeight': render.resolution_y,
                 })
 
     print(json.dumps(jsn, indent=2, sort_keys=True))
