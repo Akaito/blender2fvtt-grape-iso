@@ -6,6 +6,7 @@ import os
 import sys
 
 CAMERA_NAME = 'iso-camera'
+OUTPUT_FOLDER = 'C:/Users/akait/Pictures/blender'
 
 context = bpy.context
 scene = context.scene
@@ -47,12 +48,12 @@ def main():
         object.select_set(False)
 
     # Camera test stuff
-    #print(camera.data)
-    #print(camera.data.view_frame())
-    #print(camera.location)
+    print(camera.data)
+    print(camera.data.view_frame())
+    print(camera.location)
     #print(camera.camera_fit_coords(objects['wall.weird'].id, objects['wall.weird'].location))
-    #print(camera.camera_fit_coords(depsgraph, [objects['wall.weird'].location]))
-    #return
+    print(camera.camera_fit_coords(depsgraph, [1]))
+    return
 
     # Render wall sprites.
     count = 0
@@ -63,7 +64,7 @@ def main():
 
         print('Rendering sprite for {}'.format(object.name))
         object.hide_render = False
-        do_render(camera, object, 'C:/Users/akait/Pictures/blender')
+        do_render(camera, object, OUTPUT_FOLDER)
         object.hide_render = True
     print('Enumerated {} of {} objects'.format(count, len(objects)))
 

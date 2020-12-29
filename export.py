@@ -8,10 +8,89 @@ import mathutils
 import math
 import sys
 
+
 CAMERA_NAME = 'iso-camera'
 # Don't use real camera position, since it
 #   could be on the 'wrong' side of the origin, etc.
 TOWARD_CAMERA_DIR = mathutils.Vector((1,-1,0)).normalized()
+# Note: This is just the orthographic projection's translation (T).
+#       Missing the scale (S).
+#       See https://en.wikipedia.org/wiki/Orthographic_projection#Geometry
+ORTHO_PROJ = mathutils.Matrix.OrthoProjection(
+        mathutils.Vector((1,-1,1)),
+        4
+        )
+print('ORTHO_PROJ', ORTHO_PROJ)
+
+
+#####
+## Code from https://blender.stackexchange.com/questions/16472/how-can-i-get-the-cameras-projection-matrix/86570#86570
+def project_3d_point(camera: bpy.types.Object,
+                     p: mathutils.Vector,
+                     render: bpy.types.RenderSettings = bpy.context.scene.render) -> mathutils.Vector:
+    """
+    Given a camera and its projection matrix M;
+    given p, a 3d point to project:
+
+    Compute P’ = M * P
+    P’= (x’, y’, z’, w')
+
+    Ignore z'
+    Normalize in:
+    x’’ = x’ / w’
+    y’’ = y’ / w’
+
+    x’’ is the screen coordinate in normalised range -1 (left) +1 (right)
+    y’’ is the screen coordinate in  normalised range -1 (bottom) +1 (top)
+
+    :param camera: The camera for which we want the projection
+    :param p: The 3D point to project
+    :param render: The render settings associated to the scene.
+    :return: The 2D projected point in normalized range [-1, 1] (left to right, bottom to top)
+    """
+
+    if camera.type != 'CAMERA':
+        raise Exception("Object {} is not a camera.".format(camera.name))
+
+    if len(p) != 3:
+        raise Exception("Vector {} is not three-dimensional".format(p))
+
+    # Get the two components to calculate M
+    modelview_matrix = camera.matrix_world.inverted()
+    projection_matrix = camera.calc_matrix_camera(
+        bpy.data.scenes["Scene"].view_layers["View Layer"].depsgraph,
+        x = render.resolution_x,
+        y = render.resolution_y,
+        scale_x = render.pixel_aspect_x,
+        scale_y = render.pixel_aspect_y,
+    )
+
+    # print(projection_matrix * modelview_matrix)
+
+    # Compute P’ = M * P
+    p1 = projection_matrix @ modelview_matrix @ mathutils.Vector((p.x, p.y, p.z, 1))
+
+    # Normalize in: x’’ = x’ / w’, y’’ = y’ / w’
+    p2 = mathutils.Vector(((p1.x/p1.w, p1.y/p1.w)))
+
+    return p2
+
+camera = bpy.data.objects[CAMERA_NAME]  # or bpy.context.active_object
+render = bpy.context.scene.render
+
+P = mathutils.Vector((-0.002170146, 0.409979939, 0.162410125))
+
+print("Projecting point {} for camera '{:s}' into resolution {:d}x{:d}..."
+      .format(P, camera.name, render.resolution_x, render.resolution_y))
+
+proj_p = project_3d_point(camera=camera, p=P, render=render)
+print("Projected point (homogeneous coords): {}.".format(proj_p))
+
+proj_p_pixels = mathutils.Vector(((render.resolution_x-1) * (proj_p.x + 1) / 2, (render.resolution_y - 1) * (proj_p.y - 1) / (-2)))
+print("Projected point (pixel coords): {}.".format(proj_p_pixels))
+## end Blender Stack Exchange code for world->pixel projection.
+#####
+
 
 context = bpy.context
 scene = context.scene
@@ -55,7 +134,7 @@ def main():
     objects = scene.collection.all_objects
     print('Number of objects: {}'.format(len(objects)))
     for object in objects:
-        #if object.name != 'wall.002': continue
+        if object.name != 'wall.001': continue  # debugging-only!
         if object.name.startswith('wall'):
             print('Object [{}]'.format(object.name))
             mesh = object.data
@@ -64,6 +143,11 @@ def main():
             bbox_center__world, bbox_center_bottom__world = vec_center_bottom(object.bound_box, object.matrix_world)
             print('bbox_center__world: {}'.format(bbox_center__world))
             print('     bottom:        {}'.format(bbox_center_bottom__world))
+
+            # TODO : We also need to de-select EVERYTHING before doing this; like render.py.
+            object.select_set(True)
+            print(bpy.ops.view3d.camera_to_view_selected())
+            object.select_set(False)
 
             walls = []
             for edge in mesh.edges:
@@ -101,6 +185,17 @@ def main():
 
                 print('midpoint world: {}'.format(edge_midpoint__world))
                 print('is front? {}'.format(is_front_facing))
+
+                # TODO : Why is it called 'Camera', and not the object's name?
+                ortho_proj_scale = bpy.data.cameras['Camera'].ortho_scale
+                #ortho_proj_scale_mtx = mathutils.Matrix.Scale(ortho_proj_scale)
+                edge_v0__camera = (1 * ORTHO_PROJ) @ edge_v0__world
+                edge_v1__camera = (1 * ORTHO_PROJ) @ edge_v1__world
+                camera = bpy.data.objects[CAMERA_NAME]
+                edge_v0__render = project_3d_point(camera, edge_v0__world)
+                edge_v1__render = project_3d_point(camera, edge_v1__world)
+                print('edge_v0__world:', edge_v0__world)
+                print('edge_v0__render:', edge_v0__render)
 
                 walls.append({
                     #'texture': obj.data.image?
