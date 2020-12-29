@@ -122,7 +122,7 @@ def do_render(camera, largest_ortho, obj, outpath):
     obj.select_set(True)
     print(bpy.ops.view3d.camera_to_view_selected())
     obj.select_set(False)
-    bpy.data.cameras['Camera'].ortho_scale = largest_ortho
+    #bpy.data.cameras['Camera'].ortho_scale = largest_ortho
 
     # set output resolution
     '''
@@ -140,6 +140,11 @@ def do_render(camera, largest_ortho, obj, outpath):
     #scene.render.resolution_y = FOUNDRY_GRID_SIZE * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
     #scene.render.resolution_x /= 2.625 # TODO ?
     #scene.render.resolution_y /= 2.625 # TODO ?
+
+    # TODO : Why is our main camera named 'Camera' in this collection?
+    ortho_scale = bpy.data.cameras['Camera'].ortho_scale
+    scene.render.resolution_x = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
+    scene.render.resolution_y = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
 
     # render to file
     context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
@@ -250,9 +255,9 @@ def main(should_render = True):
 
     objects = all_objects()
 
-    largest_ortho, render_size = calc_largest_ortho_scale(camera)
-    scene.render.resolution_x = render_size
-    scene.render.resolution_y = render_size
+    largest_ortho, largest_render_size = calc_largest_ortho_scale(camera)
+    scene.render.resolution_x = largest_render_size
+    scene.render.resolution_y = largest_render_size
     camera = bpy.data.objects[CAMERA_NAME]
 
     for object in objects:
@@ -345,6 +350,8 @@ def main(should_render = True):
                             ],
                         },
                 })
+
+            # Add to blender walls any objects resulting in at least one Foundry wall.
             if len(walls) > 0:
                 jsn['blenderWalls'].append({
                     'blenderObjectName': object.name,
