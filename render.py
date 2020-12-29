@@ -6,8 +6,17 @@ import os
 import sys
 
 CAMERA_NAME = 'iso-camera'
-OUTPUT_FOLDER = r'C:\Users\akait\AppData\Local\FoundryVTT\Data\worlds\5e-srd\assets\grape test\iso-walls'
+OUTPUT_FOLDER = 'C:\\Users\\akait\\AppData\\Local\\FoundryVTT\\Data\\worlds\\5e-srd\\assets\\grape test\\iso-walls'
 PPI = 100
+# Note: a 1x1 floor tile is roughly a PPI*1.8 x PPI*1.06 image.
+# Next: Once the larget object is found, figure out if it's tall or wide, and scale
+#       everything by that.
+#       Or, stick to floor measurements?
+# Next: Something with max X length + max Y length * WIDTH_PER_XY?
+# If the rendered object is straight up/down from its max base,
+# max X length * max Y length * WIDTH_PER_XY is the output image width.
+# For example, a 2x2 patch of ground would yield 2*2*WIDTH_PER_XY
+WIDTH_PER_XY = (PPI * 1.8) / 2
 
 context = bpy.context
 scene = context.scene
@@ -89,6 +98,7 @@ print("Projected point (pixel coords): {}.".format(proj_p_pixels))
 
 def calc_largest_ortho_scale(camera):
     largest_ortho = 0
+    render_size = 0
     for object in bpy.data.objects:
         object.select_set(True)
         print(bpy.ops.view3d.camera_to_view_selected())
@@ -96,7 +106,15 @@ def calc_largest_ortho_scale(camera):
         # TODO : Why is our main camera named 'Camera' in this collection?
         if bpy.data.cameras['Camera'].ortho_scale > largest_ortho:
             largest_ortho = bpy.data.cameras['Camera'].ortho_scale
-    return largest_ortho
+            render_size = calc_render_size(largest_ortho, object, bpy.data.objects[CAMERA_NAME])
+    return largest_ortho, largest_object_name
+
+
+def calc_render_size(ortho_scale, object, camera):
+    min_x = sys.maxint
+    max_x = -sys.maxint
+    min_y = sys.maxint
+    max_y = -sys.maxin
 
 
 def do_render(camera, largest_ortho, obj, outpath):
@@ -116,8 +134,8 @@ def do_render(camera, largest_ortho, obj, outpath):
     print('cameraUnitsPerLateralWorldUnit', cameraUnitsPerLateralWorldUnit)
 
     # TODO : Why is our main camera named 'Camera' in this collection?
-    scene.render.resolution_x = PPI * bpy.data.cameras['Camera'].ortho_scale
-    scene.render.resolution_y = PPI * bpy.data.cameras['Camera'].ortho_scale
+    scene.render.resolution_x = PPI * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
+    scene.render.resolution_y = PPI * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
 
     # render to file
     context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
@@ -142,7 +160,9 @@ def main():
         object.hide_render = object.type == 'MESH'
         object.select_set(False)
 
-    largest_ortho = calc_largest_ortho_scale(camera)
+    largest_ortho, largest_object_name = calc_largest_ortho_scale(camera)
+
+    render_size = calc_render_size(largest_ortho, largest_object_name)
 
     # Camera test stuff
     #print(camera.data)

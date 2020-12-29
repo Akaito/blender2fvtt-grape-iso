@@ -5,11 +5,16 @@
 import bpy
 import json
 from mathutils import *
-#from math import *
+from math import *
+import os
 import sys
 
 
 CAMERA_NAME = 'iso-camera'
+OUTPUT_FOLDER = 'C:\\Users\\akait\\AppData\\Local\\FoundryVTT\\Data\\worlds\\5e-srd\\assets\\grape test\\iso-walls'
+FOUNDRY_GRID_SIZE = 100
+#BLENDER_INCHES_PER_WORLD_UNIT = 1  # TODO
+
 # Don't use real camera position, since it
 #   could be on the 'wrong' side of the origin, etc.
 TOWARD_CAMERA_DIR = Vector((1,-1,0)).normalized()
@@ -21,6 +26,17 @@ ORTHO_PROJ = Matrix.OrthoProjection(
         4
         )
 print('ORTHO_PROJ', ORTHO_PROJ)
+
+# Note: a 1x1 floor tile is roughly a PPI*1.8 x PPI*1.06 image.
+# Note: a 1x1 floor tile has Blender camera ortho scale very near to sqrt(2).
+# Next: Once the larget object is found, figure out if it's tall or wide, and scale
+#       everything by that.
+#       Or, stick to floor measurements?
+# Next: Something with max X length + max Y length * WIDTH_PER_XY?
+# If the rendered object is straight up/down from its max base,
+# max X length * max Y length * WIDTH_PER_XY is the output image width.
+# For example, a 2x2 patch of ground would yield 2*2*WIDTH_PER_XY
+WIDTH_PER_XY = (FOUNDRY_GRID_SIZE * 1.8) / 2
 
 
 #####
@@ -75,9 +91,10 @@ def project_3d_point(camera: bpy.types.Object,
 
     return p2
 
-camera = bpy.data.objects[CAMERA_NAME]  # or bpy.context.active_object
+#camera = bpy.data.objects[CAMERA_NAME]  # or bpy.context.active_object
 render = bpy.context.scene.render
 
+'''
 P = Vector((-0.002170146, 0.409979939, 0.162410125))
 
 print("Projecting point {} for camera '{:s}' into resolution {:d}x{:d}..."
@@ -88,8 +105,76 @@ print("Projected point (homogeneous coords): {}.".format(proj_p))
 
 proj_p_pixels = Vector(((render.resolution_x-1) * (proj_p.x + 1) / 2, (render.resolution_y - 1) * (proj_p.y - 1) / (-2)))
 print("Projected point (pixel coords): {}.".format(proj_p_pixels))
+'''
 ## end Blender Stack Exchange code for world->pixel projection.
 #####
+
+
+# Mostly just here to help debug by filtering down to objects of interest.
+def all_objects():
+    #return bpy.data.objects
+    #return scene.collection.all_objects
+    return [o for o in bpy.data.objects if o.name == 'wall.floorTile4x1']
+
+
+def do_render(camera, largest_ortho, obj, outpath):
+    # select object and move camera to it
+    #context.view_layer.objects.active = bpy.data.objects[obj.name]
+    obj.select_set(True)
+    print(bpy.ops.view3d.camera_to_view_selected())
+    obj.select_set(False)
+    bpy.data.cameras['Camera'].ortho_scale = largest_ortho
+
+    # set output resolution
+    '''
+    # project_3d_point() uses render resolution
+    grid_left__camera = \
+            project_3d_point(camera, Vector((0,0,0)))
+    grid_right__camera = \
+            project_3d_point(camera, Vector((1,1,0)))
+    camera_units_per_grid_horizontal = (grid_right__camera - grid_left__camera).length
+    print('camera_units_per_grid_horizontal', camera_units_per_grid_horizontal)
+    '''
+
+    # TODO : Why is our main camera named 'Camera' in this collection?
+    #scene.render.resolution_x = FOUNDRY_GRID_SIZE * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
+    #scene.render.resolution_y = FOUNDRY_GRID_SIZE * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
+    #scene.render.resolution_x /= 2.625 # TODO ?
+    #scene.render.resolution_y /= 2.625 # TODO ?
+
+    # render to file
+    context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
+    bpy.ops.render.render(write_still = True)
+
+
+def calc_largest_ortho_scale(camera):
+    largest_ortho = 0
+    render_size = 0
+    for object in all_objects():
+        if object.type != 'MESH': continue
+        object.select_set(True)
+        print(bpy.ops.view3d.camera_to_view_selected())
+        object.select_set(False)
+        current_ortho_scale = bpy.data.cameras['Camera'].ortho_scale
+        print(object.name, 'has ortho scale', current_ortho_scale)
+        # TODO : Why is our main camera named 'Camera' in this collection?
+        if current_ortho_scale > largest_ortho:
+            largest_ortho = bpy.data.cameras['Camera'].ortho_scale
+            render_size = calc_render_size(largest_ortho, object, bpy.data.objects[CAMERA_NAME])
+    print('largest_ortho', largest_ortho)
+    return largest_ortho, render_size
+
+
+def calc_render_size(ortho_scale, object, camera):
+    #min_x = sys.maxint
+    #max_x = -sys.maxint
+    #min_y = sys.maxint
+    #max_y = -sys.maxin
+    # Foundry PPI (scene grid size) with grape_juice-isometrics wants
+    # a 1x1 floor tile image to be about 180 x 106 pixels.
+    # (Going by The Iso Explorer's assets.)
+    render_width_per_scale = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
+    return render_width_per_scale
 
 
 context = bpy.context
@@ -99,9 +184,6 @@ print('')
 print('')
 print('')
 print('~*~ EXPORT.PY ~*~')
-
-print(dir(context))
-print(dir(scene))
 
 
 def vec_center(vec_list):
@@ -124,19 +206,53 @@ def vec_center_bottom(vec_list, mat=None):
     return mat @ center, mat @ bottom
 
 
-def main():
+def prepare():
+    cleanup_data = {
+            'film_transparent': scene.render.film_transparent,
+            'objects': {},
+            'render_resolution_x': scene.render.resolution_x,
+            'render_resolution_y': scene.render.resolution_y,
+            }
+    scene.render.film_transparent = True
+
+    # Deselect all objects
+    for object in bpy.data.objects:
+        cleanup_data['objects'][object.name] = {
+                'selected': object.select_get(),
+                'hide_render': object.hide_render,
+                }
+        object.select_set(False)
+
+    return cleanup_data
+
+
+def cleanup(cleanup_data):
+    # restore original render, etc. states
+    scene.render.film_transparent = cleanup_data['film_transparent']
+    scene.render.resolution_x = cleanup_data['render_resolution_x']
+    scene.render.resolution_y = cleanup_data['render_resolution_y']
+    for object in bpy.data.objects:
+        obj_data = cleanup_data['objects'][object.name]
+        object.hide_render = obj_data['hide_render']
+        object.select_set(obj_data['selected'])
+
+
+def main(should_render = True):
     camera = scene.collection.all_objects.get(CAMERA_NAME)
     assert camera is not None, 'Please have a camera named {}'.format(CAMERA_NAME)
     jsn = {
-            'blenderWalls': []
-    }
+            'blenderWalls': [],
+            'scale': 0,  # TODO
+            }
 
-    objects = scene.collection.all_objects
-    print('Number of objects: {}'.format(len(objects)))
+    #objects = scene.collection.all_objects
+    #objects = bpy.data.objects
+    objects = all_objects()
 
-    # Deselect all objects
-    for object in objects:
-        object.select_set(False)
+    largest_ortho, render_size = calc_largest_ortho_scale(camera)
+    scene.render.resolution_x = render_size
+    scene.render.resolution_y = render_size
+    camera = bpy.data.objects[CAMERA_NAME]
 
     for object in objects:
         #if object.name != 'wall.001': continue  # debugging-only!
@@ -153,7 +269,6 @@ def main():
             bpy.ops.view3d.camera_to_view_selected()
             object.select_set(False)
 
-            camera = bpy.data.objects[CAMERA_NAME]
             print('camera scale:', bpy.data.cameras['Camera'].ortho_scale)
             originInCamera = \
                     project_3d_point(camera, Vector((0,0,0)))
@@ -233,11 +348,30 @@ def main():
                 jsn['blenderWalls'].append({
                     'blenderObjectName': object.name,
                     'foundryWalls': walls,
-                    'renderUnitsPerLateralWorldUnit': cameraUnitsPerLateralWorldUnit,
+                    #'renderUnitsPerLateralWorldUnit': cameraUnitsPerLateralWorldUnit,
                     'renderWidth': render.resolution_x,
                     'renderHeight': render.resolution_y,
                 })
 
-    print(json.dumps(jsn, indent=2, sort_keys=True))
-main()
+    # Render wall sprites.
+    if should_render:
+        for object in all_objects():
+            # skip non-mesh objects
+            if not object.type == 'MESH': continue
+            # skip non-wall objects
+            #if not object.name.startswith('wall'): continue
+
+            print('Rendering sprite for {}'.format(object.name))
+            object.hide_render = False
+            do_render(camera, largest_ortho, object, OUTPUT_FOLDER)
+            object.hide_render = True
+
+    #print(json.dumps(jsn, indent=2, sort_keys=True))
+    print(json.dumps(jsn, sort_keys=True))
+
+cleanup_data = prepare()
+try:
+    main()
+finally:
+    cleanup(cleanup_data)
 
