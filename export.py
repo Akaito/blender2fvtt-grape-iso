@@ -27,7 +27,7 @@ ORTHO_PROJ = Matrix.OrthoProjection(
         )
 print('ORTHO_PROJ', ORTHO_PROJ)
 
-# Note: a 1x1 floor tile is roughly a PPI*1.8 x PPI*1.06 image.
+# Note: a 1x1 floor tile is roughly a PPI*1.8 x PPI*1.06 image (see The Iso Explorer).
 # Note: a 1x1 floor tile has Blender camera ortho scale very near to sqrt(2).
 # Next: Once the larget object is found, figure out if it's tall or wide, and scale
 #       everything by that.
@@ -36,7 +36,9 @@ print('ORTHO_PROJ', ORTHO_PROJ)
 # If the rendered object is straight up/down from its max base,
 # max X length * max Y length * WIDTH_PER_XY is the output image width.
 # For example, a 2x2 patch of ground would yield 2*2*WIDTH_PER_XY
-WIDTH_PER_XY = (FOUNDRY_GRID_SIZE * 1.8) / 2
+#MAGIC_SCALE = 1.8
+MAGIC_SCALE = sqrt(pi)
+WIDTH_PER_XY = (FOUNDRY_GRID_SIZE * MAGIC_SCALE) / 2
 
 
 #####
@@ -109,10 +111,21 @@ print("Projected point (pixel coords): {}.".format(proj_p_pixels))
 ## end Blender Stack Exchange code for world->pixel projection.
 #####
 
+# Functionized code from the Stack Exchange example, above.
+def pixel_from_camera(point__camera: Vector, render_width, render_height) -> Vector:
+    return Vector((
+            (render_height - 1) * (point__camera.y - 1) / -2,
+            (render_width  - 1) * (point__camera.x + 1) /  2
+            ))
+
+
+def get_resolution(ortho_scale):
+    return (FOUNDRY_GRID_SIZE * MAGIC_SCALE) * (ortho_scale / sqrt(2))
+
 
 # Mostly just here to help debug by filtering down to objects of interest.
 def all_objects():
-    #return [o for o in bpy.data.objects if o.name == 'wall.floorTile4x1']
+    return [o for o in bpy.data.objects if o.name == 'wall.floorTile1x1']
     return bpy.data.objects
 
 
@@ -123,28 +136,12 @@ def do_render(camera, largest_ortho, obj, outpath):
     print(bpy.ops.view3d.camera_to_view_selected())
     obj.select_set(False)
     #bpy.data.cameras['Camera'].ortho_scale = largest_ortho
+    ortho_scale = bpy.data.cameras['Camera'].ortho_scale
 
     # set output resolution
-    '''
-    # project_3d_point() uses render resolution
-    grid_left__camera = \
-            project_3d_point(camera, Vector((0,0,0)))
-    grid_right__camera = \
-            project_3d_point(camera, Vector((1,1,0)))
-    camera_units_per_grid_horizontal = (grid_right__camera - grid_left__camera).length
-    print('camera_units_per_grid_horizontal', camera_units_per_grid_horizontal)
-    '''
-
     # TODO : Why is our main camera named 'Camera' in this collection?
-    #scene.render.resolution_x = FOUNDRY_GRID_SIZE * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
-    #scene.render.resolution_y = FOUNDRY_GRID_SIZE * (bpy.data.cameras['Camera'].ortho_scale / cameraUnitsPerLateralWorldUnit)
-    #scene.render.resolution_x /= 2.625 # TODO ?
-    #scene.render.resolution_y /= 2.625 # TODO ?
-
-    # TODO : Why is our main camera named 'Camera' in this collection?
-    ortho_scale = bpy.data.cameras['Camera'].ortho_scale
-    scene.render.resolution_x = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
-    scene.render.resolution_y = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
+    scene.render.resolution_x = get_resolution(ortho_scale)
+    scene.render.resolution_y = get_resolution(ortho_scale)
 
     # render to file
     context.scene.render.filepath = os.path.join(outpath, '{}.png'.format(obj.name))
@@ -164,11 +161,12 @@ def calc_largest_ortho_scale(camera):
         # TODO : Why is our main camera named 'Camera' in this collection?
         if current_ortho_scale > largest_ortho:
             largest_ortho = bpy.data.cameras['Camera'].ortho_scale
-            render_size = (FOUNDRY_GRID_SIZE * 1.8) * (largest_ortho / sqrt(2))
+            render_size = get_resolution(largest_ortho)
     print('largest_ortho', largest_ortho)
     return largest_ortho, render_size
 
 
+# deprecated
 def calc_render_size(ortho_scale, object, camera):
     #min_x = sys.maxint
     #max_x = -sys.maxint
@@ -177,8 +175,7 @@ def calc_render_size(ortho_scale, object, camera):
     # Foundry PPI (scene grid size) with grape_juice-isometrics wants
     # a 1x1 floor tile image to be about 180 x 106 pixels.
     # (Going by The Iso Explorer's assets.)
-    render_width_per_scale = (FOUNDRY_GRID_SIZE * 1.8) * (ortho_scale / sqrt(2))
-    return render_width_per_scale
+    pass
 
     # (x+y) * (FOUNDRY_GRID_SIZE * 0.9)
     # (x+y) * (FOUNDRY_GRID_SIZE * 0.9) * (ortho_scale / sqrt(2))
@@ -214,13 +211,25 @@ def vec_center_bottom(vec_list, mat=None):
 
 
 def prepare():
+    # TODO : Again with the special camera name.
+    camera = bpy.data.cameras['Camera']
     cleanup_data = {
             'film_transparent': scene.render.film_transparent,
             'objects': {},
             'render_resolution_x': scene.render.resolution_x,
             'render_resolution_y': scene.render.resolution_y,
+            'Camera': {
+                #'ortho_scale': camera.ortho_scale,  # TODO
+                #'location': camera.location,  # TODO
+                'type': camera.type,
+                }
             }
     scene.render.film_transparent = True
+    # Just have to have a square output for now.  Scale determined later.
+    # Future optimization: Pull camera in to exact object dimensions?
+    scene.render.resolution_x = 100
+    scene.render.resolution_y = 100
+    camera.type = 'ORTHO'
 
     # Prepare all objects.
     for object in bpy.data.objects:
@@ -228,7 +237,7 @@ def prepare():
                 'selected': object.select_get(),
                 'hide_render': object.hide_render,
                 }
-        object.select_set(False)
+        object.select_set(False) # deselect objects
         object.hide_render = object.type == 'MESH'  # hide mesh objects
 
     return cleanup_data
@@ -239,6 +248,7 @@ def cleanup(cleanup_data):
     scene.render.film_transparent = cleanup_data['film_transparent']
     scene.render.resolution_x = cleanup_data['render_resolution_x']
     scene.render.resolution_y = cleanup_data['render_resolution_y']
+    bpy.data.cameras['Camera'].type = cleanup_data['Camera']['type']
     for object in bpy.data.objects:
         obj_data = cleanup_data['objects'][object.name]
         object.hide_render = obj_data['hide_render']
@@ -246,8 +256,12 @@ def cleanup(cleanup_data):
 
 
 def main(should_render = True):
-    camera = scene.collection.all_objects.get(CAMERA_NAME)
+    #camera = scene.collection.all_objects.get(CAMERA_NAME)
+    camera = bpy.data.objects[CAMERA_NAME]
     assert camera is not None, 'Please have a camera named {}'.format(CAMERA_NAME)
+    assert camera.track_axis == 'NEG_Z', 'Currently only support cameras that track the negative-z axis.'
+    # TODO : Fix hard-coded special camera name.
+    camera_camera = bpy.data.cameras['Camera']
     jsn = {
             'blenderWalls': [],
             'scale': 0,  # TODO
@@ -258,7 +272,6 @@ def main(should_render = True):
     largest_ortho, largest_render_size = calc_largest_ortho_scale(camera)
     scene.render.resolution_x = largest_render_size
     scene.render.resolution_y = largest_render_size
-    camera = bpy.data.objects[CAMERA_NAME]
 
     for object in objects:
         #if object.name != 'wall.001': continue  # debugging-only!
@@ -272,30 +285,47 @@ def main(should_render = True):
             print('     bottom:        {}'.format(bbox_center_bottom__world))
 
             object.select_set(True)
-            bpy.ops.view3d.camera_to_view_selected()
+            bpy.ops.view3d.camera_to_view_selected()  # place camera
             object.select_set(False)
+            # TODO : Special object name 'Camera': why?
+            ortho_scale = camera_camera.ortho_scale
+            #print(object.name, 'ortho_scale', ortho_scale)
+            resolution = get_resolution(ortho_scale)
+            render.resolution_x = resolution
+            render.resolution_y = resolution
+            #camera_pos = camera.location
+            #print(object.name, 'camera is at', camera_pos)
 
+            camera_forward__world = (camera.matrix_world @ Vector((0,0,-1))) - camera.location
+            camera_upper_left__world = (camera.matrix_world @ Vector((-ortho_scale/2,ortho_scale/2,0)))
+            render_upper_left__world = geometry.intersect_line_plane(
+                    camera_upper_left__world,
+                    camera_upper_left__world + camera_forward__world,
+                    Vector((0,0,0)),
+                    Vector((0,0,1))
+                    )
+            print('anti-camera upper-left', render_upper_left__world)
+
+            '''
             print('camera scale:', bpy.data.cameras['Camera'].ortho_scale)
             originInCamera = \
                     project_3d_point(camera, Vector((0,0,0)))
             originPlusOneInCamera = \
                     project_3d_point(camera, Vector((1,0,0)))
             cameraUnitsPerLateralWorldUnit = (originPlusOneInCamera - originInCamera).length
+            '''
 
             walls = []
             for edge in mesh.edges:
                 edge_v0__local = Vector(mesh.vertices[edge.vertices[0]].co)
                 edge_v1__local = Vector(mesh.vertices[edge.vertices[1]].co)
+                #print('edge v0 local:   {}'.format(edge_v0__local))
+                #print('edge v1 local:   {}'.format(edge_v1__local))
 
                 edge_v0__world = object.matrix_world @ edge_v0__local
                 edge_v1__world = object.matrix_world @ edge_v1__local
                 #print('edge v0 world:  {}'.format(edge_v0__world))
                 #print('edge v1 world:  {}'.format(edge_v1__world))
-
-                edge_midpoint__world = (edge_v0__world + edge_v1__world) / 2
-
-                edge_vec = edge_v1__world - edge_v0__world
-                left_norm = Matrix
 
                 # ignore edges not along the bbox's bottom plane
                 if abs(bbox_center_bottom__world.z - edge_v0__world.z) > 0.01: continue
@@ -316,7 +346,6 @@ def main(should_render = True):
                         is_front_facing = True
                         break
 
-                #print('midpoint world: {}'.format(edge_midpoint__world))
                 #print('is front? {}'.format(is_front_facing))
 
                 edge_v0__render = project_3d_point(camera, edge_v0__world)
@@ -324,11 +353,15 @@ def main(should_render = True):
                 #print('edge_v0__world:', edge_v0__world)
                 #print('edge_v0__render:', edge_v0__render)
 
+                edge_v0__pixel = pixel_from_camera(edge_v0__render, get_resolution(ortho_scale), get_resolution(ortho_scale))
+                edge_v1__pixel = pixel_from_camera(edge_v1__render, get_resolution(ortho_scale), get_resolution(ortho_scale))
+
                 walls.append({
                     #'texture': obj.data.image?
                     'isFrontFacing': is_front_facing,
                     'a': {
                         'world': [
+                            #'{:0.6}'.format(edge_v0__world.x),
                             round(edge_v0__world.x, 6),
                             round(edge_v0__world.y, 6),
                             round(edge_v0__world.z, 6),
@@ -336,6 +369,10 @@ def main(should_render = True):
                         'renderCamera': [
                             round(edge_v0__render.x, 6),
                             round(edge_v0__render.y, 6),
+                            ],
+                        'imagePixel': [
+                            round(edge_v0__pixel.x, 6),
+                            round(edge_v0__pixel.y, 6),
                             ],
                         },
                     'b': {
@@ -345,8 +382,12 @@ def main(should_render = True):
                             round(edge_v1__world.z, 6),
                             ],
                         'renderCamera': [
-                            round(edge_v0__render.x, 6),
-                            round(edge_v0__render.y, 6),
+                            round(edge_v1__render.x, 6),
+                            round(edge_v1__render.y, 6),
+                            ],
+                        'imagePixel': [
+                            round(edge_v1__pixel.x, 6),
+                            round(edge_v1__pixel.y, 6),
                             ],
                         },
                 })
@@ -356,9 +397,13 @@ def main(should_render = True):
                 jsn['blenderWalls'].append({
                     'blenderObjectName': object.name,
                     'foundryWalls': walls,
+                    'renderUpperLeftWorld': [
+                        round(render_upper_left__world.x, 6),
+                        round(render_upper_left__world.y, 6),
+                        ],
                     #'renderUnitsPerLateralWorldUnit': cameraUnitsPerLateralWorldUnit,
-                    'renderWidth': render.resolution_x,
-                    'renderHeight': render.resolution_y,
+                    'renderWidth': get_resolution(ortho_scale),
+                    'renderHeight': get_resolution(ortho_scale),
                 })
 
     # Render wall sprites.
