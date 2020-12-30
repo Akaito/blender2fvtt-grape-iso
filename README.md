@@ -2,17 +2,9 @@ Work in progress!  Very much not ready yet!
 
 ## TODO / next steps
 
-- [x] Create tiles in Foundry with some nonsense image,
-      but positioned reasonably and hooked to the right walls.
-      Then the user can change the tile images as desired.
-- [x] Hook nonsense-image tiles to walls.
-- [ ] Better tile positions?
-      Have to figure out what 'better' even means here.
-      For a first go, maybe just make it so using one of The Iso Explorer's
-      tiles doesn't need re-adjustment after?  Or at least minimal
-      re-adjustment.
-- [ ] Render walls from Blender.
-      Have to figure out camera positioning.
+- [ ] Better tile positions
+      Tile positioning is _close_, but there's something I'm missing.
+- [x] Render walls from Blender.
 - [ ] Figure out how to handle complex meshes.
       Maybe complex meshes (for rendering purposes) have
       parent objects that are the collision mesh?
